@@ -1,3 +1,42 @@
+
+# ⚠️ POWERMOVES RP — CUSTOM DEVELOPMENT BUILD
+
+**IMPORTANT NOTICE: This repository contains a customized development version of Project Sloth PS Dispatch, being developed specifically for the PowerMoves RP FiveM roleplay server.**
+
+This version is being modified and expanded to support PowerMoves RP's unique QBCore job configurations, law enforcement agencies, fire rescue departments, emergency medical services, dispatch operations, and integration with our customized PowerMoves PS-MDT system.
+
+## ⚠️ NOT A STANDARD PS DISPATCH RELEASE
+
+**This repository is not intended to serve as a standard, general-purpose, or plug-and-play release of Project Sloth PS Dispatch.**
+
+The planned modifications are designed specifically around the PowerMoves RP server environment, including its custom agencies, departments, ranks, permissions, and emergency service configurations.
+
+As a result, this version may not function correctly on other FiveM servers without additional configuration, modification, or development.
+
+## Original Project Attribution & Acknowledgment
+
+PowerMoves RP proudly acknowledges and credits the original developers and contributors of **Project Sloth PS Dispatch**.
+
+**Original Project:** Project Sloth PS Dispatch  
+**Original Repository:** https://github.com/Project-Sloth/ps-dispatch  
+**Original License:** GNU General Public License, Version 3 (GPL-3.0)  
+**License Information:** https://www.gnu.org/licenses/gpl-3.0.html
+
+This repository is an independently maintained modification of the original open-source project.
+
+All original developer credits, copyright notices, and applicable licensing terms are retained and respected. Modifications developed for PowerMoves RP remain subject to the applicable original license requirements.
+
+**PowerMoves RP is not affiliated with, sponsored by, endorsed by, or officially associated with Project Sloth or its original development team.**
+
+We sincerely appreciate the time, effort, and contributions of the Project Sloth developers and the open-source FiveM development community. Their work provides the foundation upon which this customized implementation is being developed.
+
+---
+
+## Original Project Sloth Documentation
+
+*The original Project Sloth PS Dispatch documentation is preserved below for reference, attribution, and compatibility information.*
+
+
 # ps-dispatch
 
 Dispatch and alert system for FiveM. Built with Svelte and Lua. Works on QBCore and QBX.

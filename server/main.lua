@@ -396,27 +396,46 @@ RegisterServerEvent('ps-dispatch:server:detach', function(id, player)
 end)
 
 -- Callbacks
+-- Each dispatch board must use the same audience rules as alert broadcasts.
+-- A job name can target a department specifically, while a job type can target
+-- a whole service (for example 'leo' or 'ems').
+local function canViewCall(src, call)
+    if not QBCore then return false end
+    local player = QBCore.Functions.GetPlayer(src)
+    local job = player and player.PlayerData and player.PlayerData.job
+    if not job or type(call.jobs) ~= 'table' then return false end
+    if Config.OnDutyOnly and not job.onduty then return false end
+    return lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)
+end
+
 lib.callback.register('ps-dispatch:callback:getLatestDispatch', function(source)
-    return calls[#calls]
+    for i = #calls, 1, -1 do
+        if canViewCall(source, calls[i]) then return publicCall(calls[i]) end
+    end
+    return nil
 end)
 
---- The whole call list, sanitised. Same reasoning as broadcastCall: the menu
---- and the map read from here too.
-local function publicCalls()
+--- Only the requesting unit's eligible calls, with exact coordinates removed
+--- from approximate-location reports as in broadcastCall.
+local function publicCalls(src)
     local out = {}
-    for i = 1, #calls do out[i] = publicCall(calls[i]) end
+    for i = 1, #calls do
+        if canViewCall(src, calls[i]) then
+            out[#out + 1] = publicCall(calls[i])
+        end
+    end
     return out
 end
 
 lib.callback.register('ps-dispatch:callback:getCalls', function(source)
-    return publicCalls()
+    return publicCalls(source)
 end)
 
 -- Commands
 lib.addCommand('dispatch', {
     help = locale('open_dispatch')
 }, function(source, raw)
-    TriggerClientEvent("ps-dispatch:client:openMenu", source, publicCalls())
+    TriggerClientEvent("ps-dispatch:client:openMenu", source, publicCalls(source))
 end)
 
 lib.addCommand('911', {

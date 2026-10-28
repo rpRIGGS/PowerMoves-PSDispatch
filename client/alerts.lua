@@ -604,7 +604,7 @@ local function Explosion()
         gender = GetPlayerGender(),
         street = GetStreetAndZone(coords),
         alertTime = nil,
-        jobs = { 'leo' }
+        jobs = { 'leo', table.unpack(Config.FireRescueJobs) }
     }
 
     TriggerServerEvent('ps-dispatch:server:notify', dispatchData)

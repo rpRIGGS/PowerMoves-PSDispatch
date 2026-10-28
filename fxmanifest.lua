@@ -30,4 +30,6 @@ files {
   'locales/*.json',
 }
 
+dependency 'oxmysql'
+
 ox_lib 'locale' -- v3.8.0 or above

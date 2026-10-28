@@ -619,7 +619,7 @@ local function PhoneCall(message, anonymous, job, type)
 
         local dispatchData = {
             message = anonymous and locale('anon_call') or locale('call'),
-            codeName = type == '311' and '311call' or '911call',
+            codeName = type == '511' and '511call' or (type == '311' and '311call' or '911call'),
             code = type,
             icon = 'fas fa-phone',
             priority = 2,
@@ -650,7 +650,7 @@ RegisterNetEvent('ps-dispatch:client:sendEmergencyMsg', function(data, type, ano
     QBCore.Functions.Notify("Command on cooldown", "error")
     else
     pslastaction = idtrack
-    local jobs = { ['911'] = { 'leo' }, ['311'] = { 'ems' } }
+    local jobs = { ['911'] = { 'leo' }, ['311'] = { 'ems' }, ['511'] = { 'mechanic' } }
     PhoneCall(data, anonymous, jobs[type], type)
     end
 end)

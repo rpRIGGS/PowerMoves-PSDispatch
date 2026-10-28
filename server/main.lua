@@ -428,8 +428,22 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
             return { success = false, reason = 'Tow already assigned' }
         end
     end
+    local wasUnassigned = #target.units == 0
     local success = attachResponder(source, id)
-    return { success = success, reason = success and nil or 'Not eligible for this tow' }
+    if success and wasUnassigned and QBCore then
+        -- The assigned unit retains its call. Everyone else in the mechanic
+        -- audience drops this job from the available-calls board immediately.
+        local winner = target.units[1] and target.units[1].citizenid
+        for src, player in pairs(QBCore.Functions.GetQBPlayers()) do
+            local data = player.PlayerData
+            local job = data and data.job
+            if job and job.type == 'mechanic' and data.citizenid ~= winner then
+                TriggerClientEvent('ps-dispatch:client:callCleared', src, target.id)
+            end
+        end
+    end
+    if not success then return { success = false, reason = 'Not eligible for this tow' } end
+    return { success = true }
 end)
 
 RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)
@@ -463,6 +477,8 @@ local function canViewCall(src, call)
     local job = player and player.PlayerData and player.PlayerData.job
     if not job or type(call.jobs) ~= 'table' then return false end
     if Config.OnDutyOnly and not job.onduty then return false end
+    if call.exclusive == true and type(call.units) == 'table' and #call.units > 0
+        and call.units[1].citizenid ~= data.citizenid then return false end
     return lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)
 end
 

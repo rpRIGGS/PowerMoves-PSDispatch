@@ -182,6 +182,10 @@ Config.Jobs = { -- Job Types or names that can access the dispatch menu. If you 
     "ems"
 }
 
+-- PowerMoves RP fire-rescue departments. Job names are used here rather than
+-- the shared 'ems' type so fire-only alerts do not reach hospital staff.
+Config.FireRescueJobs = { 'safr', 'lsfd', 'lscfd', 'bcfd' }
+
 Config.AlertCommandCooldown = 60 -- this would make the command work every 60 seconds to avoid spamming
 
 Config.DefaultAlertsDelay = 5 -- Delay between each default alert, prevent spamming

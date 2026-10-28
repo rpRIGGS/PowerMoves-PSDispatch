@@ -397,6 +397,9 @@ local function attachResponder(src, id)
             end
             if removed then
                 broadcastUnitCount(call)
+                if call.exclusive == true and #call.units == 0 then
+                    broadcastCall(call)
+                end
                 TriggerClientEvent('ps-dispatch:client:detachedFrom', src, call.id)
             end
         end

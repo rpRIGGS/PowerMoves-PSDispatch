@@ -17,6 +17,7 @@ client_script {
   'client/**',
 }
 server_script {
+  '@oxmysql/lib/MySQL.lua',
   "server/**",
 }
 shared_script {

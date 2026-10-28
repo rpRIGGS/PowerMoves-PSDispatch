@@ -451,6 +451,10 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
 end)
 
 RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)
+    -- Exclusive towing must use the acknowledged claim callback.
+    for _, call in ipairs(calls) do
+        if call.id == tonumber(id) and call.exclusive == true then return end
+    end
     attachResponder(source, id)
 end)
 

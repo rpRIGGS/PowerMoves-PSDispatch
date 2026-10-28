@@ -280,6 +280,31 @@ exports('GetDispatchCalls', function()
     return calls
 end)
 
+-- Stable dispatch-to-ledger reference and ordered tow lifecycle notifications.
+-- Only the server creates these values; client fields are not trusted for
+-- assignment or audit transitions.
+local towSession = tostring(os.time()) .. '-' .. tostring(math.random(100000, 999999))
+local function changeTowStatus(call, status, actor)
+    if not call or call.codeName ~= '511call' or not call.towRef then return end
+    call.towRevision = (call.towRevision or 0) + 1
+    local driver = call.units and call.units[1] or nil
+    TriggerEvent('ps-dispatch:server:towRecordChanged', status, {
+        ref = call.towRef,
+        revision = call.towRevision,
+        dispatchId = call.id,
+        caller = call.towCaller,
+        callerName = call.towCallerName,
+        information = call.information,
+        street = call.street,
+        plate = call.plate,
+        coords = call.coords,
+        driver = driver and driver.citizenid or nil,
+        driverJob = driver and driver.job and driver.job.name or nil,
+        actor = actor and actor.citizenid or nil,
+        actorJob = actor and actor.job and actor.job.name or nil,
+    })
+end
+
 -- Events
 --- Code names that outrank everything, as a set for cheap lookup.
 local criticalCodes = {}
@@ -328,6 +353,15 @@ RegisterServerEvent('ps-dispatch:server:notify', function(data)
     callCount = callCount + 1
     data.id = callCount
     data.time = os.time() * 1000
+    if data.codeName == '511call' then
+        local player = QBCore and QBCore.Functions.GetPlayer(src)
+        local profile = player and player.PlayerData
+        local ci = profile and profile.charinfo or {}
+        data.towRef = towSession .. '-' .. tostring(callCount)
+        data.towRevision = -1
+        data.towCaller = profile and profile.citizenid or nil
+        data.towCallerName = (ci.firstname or '') .. ' ' .. (ci.lastname or '')
+    end
     data.units = {}
     data.responses = {}
     data.count = 1
@@ -343,6 +377,7 @@ RegisterServerEvent('ps-dispatch:server:notify', function(data)
     -- and stay out of the list, which is the whole distinction.
     data.listed = true
 
+    if data.codeName == '511call' then changeTowStatus(data, 'requested') end
     broadcastCall(data)
 end)
 
@@ -398,6 +433,7 @@ local function attachResponder(src, id)
             if removed then
                 broadcastUnitCount(call)
                 if call.exclusive == true and #call.units == 0 then
+                    changeTowStatus(call, 'released', responder)
                     broadcastCall(call)
                 end
                 TriggerClientEvent('ps-dispatch:client:detachedFrom', src, call.id)
@@ -434,6 +470,9 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
     end
     local wasUnassigned = #target.units == 0
     local success = attachResponder(source, id)
+    if success and wasUnassigned then
+        changeTowStatus(target, 'assigned', target.units[1])
+    end
     if success and wasUnassigned and QBCore then
         -- The assigned unit retains its call. Everyone else in the mechanic
         -- audience drops this job from the available-calls board immediately.
@@ -478,7 +517,7 @@ RegisterServerEvent('ps-dispatch:server:detach', function(id, _untrustedPlayer)
     attachedBy[src] = nil
     broadcastUnitCount(call)
     if call.exclusive == true and #call.units == 0 then
-        -- Reopen the uncompleted tow to eligible on-duty mechanics.
+        changeTowStatus(call, 'released', responder)
         broadcastCall(call)
     end
 end)
@@ -589,6 +628,7 @@ AddEventHandler('playerDropped', function()
             if #units ~= before then
                 broadcastUnitCount(calls[i])
                 if calls[i].exclusive == true and #units == 0 then
+                    changeTowStatus(calls[i], 'released', { citizenid = citizenid })
                     broadcastCall(calls[i])
                 end
             end
@@ -606,6 +646,7 @@ if (Config.CallLifetime or 0) > 0 then
             Wait(60000)
             local cutoff = os.time() * 1000 - lifetimeMs
             while calls[1] and calls[1].time < cutoff do
+                if calls[1].codeName == '511call' then changeTowStatus(calls[1], 'expired') end
                 table.remove(calls, 1)
             end
         end
@@ -726,6 +767,9 @@ RegisterServerEvent('ps-dispatch:server:clearCall', function(id)
     local call, index = findCall(id)
     if not call or not index then return end
     if not mayModifyCall(src, call) then return end
+    if call.codeName == '511call' then
+        changeTowStatus(call, 'completed', call.units and call.units[1])
+    end
 
     table.remove(calls, index)
     stats.cleared = stats.cleared + 1

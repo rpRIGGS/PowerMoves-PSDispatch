@@ -17,7 +17,6 @@ client_script {
   'client/**',
 }
 server_script {
-  '@oxmysql/lib/MySQL.lua',
   "server/**",
 }
 shared_script {
@@ -30,6 +29,5 @@ files {
   'locales/*.json',
 }
 
-dependency 'oxmysql'
 
 ox_lib 'locale' -- v3.8.0 or above

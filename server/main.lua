@@ -68,10 +68,14 @@ end
 ---@param call table
 ---@return table
 local function publicCall(call)
-    if type(call) ~= 'table' or not call.displayCoords then return call end
+    if type(call) ~= 'table' then return call end
     local copy = {}
     for k, v in pairs(call) do copy[k] = v end
-    copy.coords = nil
+    if call.displayCoords then copy.coords = nil end
+    -- Server-only SADOT bookkeeping must not be broadcast to dispatch clients.
+    copy.towCaller = nil
+    copy.towCallerName = nil
+    copy.towRevision = nil
     return copy
 end
 
@@ -368,6 +372,9 @@ RegisterServerEvent('ps-dispatch:server:notify', function(data)
     data.merged = nil
 
     if #calls >= Config.MaxCallList then
+        if calls[1] and calls[1].codeName == '511call' then
+            changeTowStatus(calls[1], 'expired')
+        end
         table.remove(calls, 1)
     end
 
@@ -696,7 +703,12 @@ local function sendTargetedAlert(targets, data)
     if data.coords and data.coords.x then resolveBlipMeta(data) end
 
     if data.addToList then
-        if #calls >= Config.MaxCallList then table.remove(calls, 1) end
+        if #calls >= Config.MaxCallList then
+            if calls[1] and calls[1].codeName == '511call' then
+                changeTowStatus(calls[1], 'expired')
+            end
+            table.remove(calls, 1)
+        end
         calls[#calls + 1] = data
         data.listed = true
     end

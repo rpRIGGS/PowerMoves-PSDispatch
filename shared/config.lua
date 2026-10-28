@@ -180,7 +180,8 @@ Config.OnDutyOnly = true -- Set true if only on duty players can see the alert
 Config.Jobs = { -- Job types allowed to access the dispatch menu. Call audiences still control which alerts they receive.
     "leo",
     "fire",
-    "ems"
+    "ems",
+    "mechanic"
 }
 
 -- PowerMoves RP fire-rescue departments. Job names are used here rather than
@@ -381,6 +382,17 @@ Config.Blips = {
         color = 3,
         scale = 1.5,
         length = 2,
+        sound = 'Lose_1st',
+        sound2 = 'GTAO_FM_Events_Soundset',
+        offset = false,
+        flash = false
+    },
+    ['511call'] = {
+        radius = 0,
+        sprite = 68,
+        color = 5,
+        scale = 1.25,
+        length = 3,
         sound = 'Lose_1st',
         sound2 = 'GTAO_FM_Events_Soundset',
         offset = false,

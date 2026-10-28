@@ -267,7 +267,11 @@ local function setWaypoint()
     local at = alertPosition(data)
     if not at then return end -- an alert without a position cannot be routed to
 
-    if not waypointCooldown and lib.table.contains(data.jobs, PlayerData.job.type) then
+    -- An alert may target a service type or a specific agency job name.
+    local job = PlayerData and PlayerData.job
+    local eligible = job and type(data.jobs) == 'table' and
+        (lib.table.contains(data.jobs, job.type) or lib.table.contains(data.jobs, job.name))
+    if not waypointCooldown and eligible and (Config.OnDutyOnly ~= true or job.onduty == true) then
         SetNewWaypoint(at.x, at.y)
         TriggerServerEvent('ps-dispatch:server:attach', data.id, PlayerData)
         -- Local bridge event so companion resources (e.g. ps-mdt's automatic

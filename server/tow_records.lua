@@ -95,17 +95,17 @@ AddEventHandler('ps-dispatch:server:towRecordChanged', function(event, record)
                 revision = GREATEST(revision, VALUES(revision))
         ]], {
             ref, tonumber(record.dispatchId) or 0, status, version,
-            clip(record.caller, 64), clip(record.callerName, 128),
-            clip(record.information, 256), clip(record.street, 128),
-            clip(record.plate, 24), tonumber(coordinates.x),
-            tonumber(coordinates.y), tonumber(coordinates.z),
-            driver, job, status, status
+            clip(record.caller, 64) or '', clip(record.callerName, 128) or '',
+            clip(record.information, 256) or '', clip(record.street, 128) or '',
+            clip(record.plate, 24) or '', tonumber(coordinates.x) or 0,
+            tonumber(coordinates.y) or 0, tonumber(coordinates.z) or 0,
+            driver or '', job or '', status, status
         })
         MySQL.insert.await([[
             INSERT IGNORE INTO pm_sadot_tow_events
                 (tow_ref, revision, event_type, actor_citizenid, actor_job)
             VALUES (?, ?, ?, ?, ?)
-        ]], {ref, version, status, clip(record.actor, 64), clip(record.actorJob, 64)})
+        ]], {ref, version, status, clip(record.actor, 64) or '', clip(record.actorJob, 64) or ''})
     end)
     if not ok then print('[ps-dispatch] SADOT record write failed: ' .. tostring(err)) end
 end)

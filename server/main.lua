@@ -459,12 +459,20 @@ RegisterServerEvent('ps-dispatch:server:detach', function(id, _untrustedPlayer)
     if not call then return end
     local responder = dispatchResponder(src, call)
     if not responder then return end
+    local removed = false
     for j = #call.units, 1, -1 do
         if call.units[j].citizenid == responder.citizenid then
             table.remove(call.units, j)
+            removed = true
         end
     end
+    if not removed then return end
+    attachedBy[src] = nil
     broadcastUnitCount(call)
+    if call.exclusive == true and #call.units == 0 then
+        -- Reopen the uncompleted tow to eligible on-duty mechanics.
+        broadcastCall(call)
+    end
 end)
 
 -- Callbacks
@@ -570,7 +578,12 @@ AddEventHandler('playerDropped', function()
                     table.remove(units, j)
                 end
             end
-            if #units ~= before then broadcastUnitCount(calls[i]) end
+            if #units ~= before then
+                broadcastUnitCount(calls[i])
+                if calls[i].exclusive == true and #units == 0 then
+                    broadcastCall(calls[i])
+                end
+            end
         end
     end
 end)
@@ -677,7 +690,12 @@ local function mayModifyCall(src, call)
     local player = QBCore.Functions.GetPlayer(src)
     local job = player and player.PlayerData and player.PlayerData.job
     if not job or type(call.jobs) ~= 'table' then return false end
-    return lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)
+    if not (lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)) then return false end
+    if call.exclusive == true then
+        -- A tow is controlled by its accepted driver, not every mechanic.
+        return #call.units > 0 and call.units[1].citizenid == player.PlayerData.citizenid
+    end
+    return true
 end
 
 ---@param id number

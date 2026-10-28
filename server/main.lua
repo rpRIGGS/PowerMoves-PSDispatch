@@ -97,6 +97,7 @@ local MERGE_REFRESH_FIELDS = {
 -- `calls[#calls] == data`, which compares table IDENTITY in Lua and
 -- therefore never matched anything.
 local function tryMergeCall(data)
+    if data.codeName == '511call' then return nil end -- tow requests never merge
     local merge = Config.CallMerge
     if not merge or merge.Enabled == false then return nil end
 

@@ -335,64 +335,91 @@ RegisterServerEvent('ps-dispatch:server:notify', function(data)
     broadcastCall(data)
 end)
 
-RegisterServerEvent('ps-dispatch:server:attach', function(id, player)
-    local src = source
-    if type(player) == 'table' and player.citizenid then
-        attachedBy[src] = player.citizenid
-        -- One call per unit: attaching somewhere implicitly detaches
-        -- everywhere else. The origin client gets told which calls it left
-        -- so those popups drop their "Responding" state.
-        for i = 1, #calls do
-            local call = calls[i]
-            if call.id ~= id and call.units then
-                local removed = false
-                for j = #call.units, 1, -1 do
-                    if call.units[j].citizenid == player.citizenid then
-                        table.remove(call.units, j)
-                        removed = true
-                    end
+-- Resolve responding units from trusted QBCore state, never from client payloads.
+-- The old event signature still accepts a second argument for UI compatibility,
+-- but it is deliberately ignored.
+local function dispatchResponder(src, call)
+    if not QBCore or type(call) ~= 'table' or type(call.jobs) ~= 'table' then return nil end
+    local player = QBCore.Functions.GetPlayer(src)
+    local data = player and player.PlayerData
+    local job = data and data.job
+    if not data or not job or type(data.citizenid) ~= 'string' then return nil end
+    if Config.OnDutyOnly ~= false and not job.onduty then return nil end
+    if not (lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)) then return nil end
+    return {
+        citizenid = data.citizenid,
+        source = src,
+        name = data.charinfo and ((data.charinfo.firstname or '') .. ' ' .. (data.charinfo.lastname or '')) or '',
+        callsign = data.metadata and data.metadata.callsign,
+        job = { name = job.name, type = job.type },
+    }
+end
+
+local function attachResponder(src, id)
+    local target
+    for _, call in ipairs(calls) do
+        if call.id == tonumber(id) then target = call break end
+    end
+    if not target then return false end
+    local responder = dispatchResponder(src, target)
+    if not responder then return false end
+
+    -- Existing emergency calls remain multi-unit. Exclusive calls are reserved
+    -- for future towing assignments; no new exclusive call type is enabled here.
+    if target.exclusive == true and #target.units > 0
+        and target.units[1].citizenid ~= responder.citizenid then return false end
+
+    for _, unit in ipairs(target.units) do
+        if unit.citizenid == responder.citizenid then return true end
+    end
+
+    -- Detach from the previous call only AFTER the destination is authorized.
+    attachedBy[src] = responder.citizenid
+    for _, call in ipairs(calls) do
+        if call.id ~= target.id and type(call.units) == 'table' then
+            local removed = false
+            for index = #call.units, 1, -1 do
+                if call.units[index].citizenid == responder.citizenid then
+                    table.remove(call.units, index)
+                    removed = true
                 end
-                if removed then
-                    broadcastUnitCount(call)
-                    TriggerClientEvent('ps-dispatch:client:detachedFrom', src, call.id)
-                end
+            end
+            if removed then
+                broadcastUnitCount(call)
+                TriggerClientEvent('ps-dispatch:client:detachedFrom', src, call.id)
             end
         end
     end
-    for i=1, #calls do
-        if calls[i]['id'] == id then
-            for j = 1, #calls[i]['units'] do
-                if calls[i]['units'][j]['citizenid'] == player.citizenid then
-                    return
-                end
-            end
-            local firstUnit = #calls[i]['units'] == 0
-            calls[i]['units'][#calls[i]['units'] + 1] = player
-            if firstUnit and not calls[i].answeredTracked then
-                calls[i].answeredTracked = true
-                stats.answered = stats.answered + 1
-                stats.responseSum = stats.responseSum + math.max(0, os.time() * 1000 - calls[i].time)
-            end
-            broadcastUnitCount(calls[i])
-            return
-        end
+
+    target.units[#target.units + 1] = responder
+    if not target.answeredTracked then
+        target.answeredTracked = true
+        stats.answered = stats.answered + 1
+        stats.responseSum = stats.responseSum + math.max(0, os.time() * 1000 - target.time)
     end
+    broadcastUnitCount(target)
+    return true
+end
+
+RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)
+    attachResponder(source, id)
 end)
 
-RegisterServerEvent('ps-dispatch:server:detach', function(id, player)
-    for i = #calls, 1, -1 do
-        if calls[i]['id'] == id then
-            if calls[i]['units'] and (#calls[i]['units'] or 0) > 0 then
-                for j = #calls[i]['units'], 1, -1 do
-                    if calls[i]['units'][j]['citizenid'] == player.citizenid then
-                        table.remove(calls[i]['units'], j)
-                    end
-                end
-                broadcastUnitCount(calls[i])
-            end
-            return
+RegisterServerEvent('ps-dispatch:server:detach', function(id, _untrustedPlayer)
+    local src = source
+    local call
+    for _, entry in ipairs(calls) do
+        if entry.id == tonumber(id) then call = entry break end
+    end
+    if not call then return end
+    local responder = dispatchResponder(src, call)
+    if not responder then return end
+    for j = #call.units, 1, -1 do
+        if call.units[j].citizenid == responder.citizenid then
+            table.remove(call.units, j)
         end
     end
+    broadcastUnitCount(call)
 end)
 
 -- Callbacks

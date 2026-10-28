@@ -496,6 +496,41 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
     return { success = true }
 end)
 
+-- Save a 511 vehicle report only for the actual, on-duty assigned mechanic.
+-- All identity, assignment, and job checks are performed on the server.
+lib.callback.register('ps-dispatch:callback:saveTowInspection', function(src, id, details)
+    local call
+    for _, entry in ipairs(calls) do
+        if entry.id == tonumber(id) then call = entry break end
+    end
+    if not call or call.codeName ~= '511call' or call.exclusive ~= true or not call.towRef then
+        return { success = false, reason = 'Tow call is no longer active' }
+    end
+    local player = QBCore and QBCore.Functions.GetPlayer(src)
+    local data = player and player.PlayerData
+    local job = data and data.job
+    if not data or not job or job.type ~= 'mechanic' or not job.onduty then
+        return { success = false, reason = 'On-duty mechanic required' }
+    end
+    local assigned = call.units and call.units[1]
+    if not assigned or assigned.citizenid ~= data.citizenid then
+        return { success = false, reason = 'You are not assigned to this tow' }
+    end
+    if type(details) ~= 'table' then
+        return { success = false, reason = 'Invalid inspection' }
+    end
+    local ok, result = pcall(function()
+        return exports[GetCurrentResourceName()]:SaveSadotTowInspection(
+            call.towRef, data.citizenid, job.name, details
+        )
+    end)
+    if not ok then
+        print('[ps-dispatch] SADOT inspection integration failed: ' .. tostring(result))
+        return { success = false, reason = 'Inspection unavailable' }
+    end
+    return result
+end)
+
 RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)
     -- Exclusive towing must use the acknowledged claim callback.
     for _, call in ipairs(calls) do

@@ -292,7 +292,12 @@ local function changeTowStatus(call, status, actor)
     if not call or call.codeName ~= '511call' or not call.towRef then return end
     call.towRevision = (call.towRevision or 0) + 1
     local driver = call.units and call.units[1] or nil
-    TriggerEvent('ps-dispatch:server:towRecordChanged', status, {
+    -- PSMDT owns the durable records. Dispatch only sends assignment events.
+    if GetResourceState('ps-mdt') ~= 'started' then
+        print('[ps-dispatch] PSMDT unavailable; SADOT lifecycle update not stored')
+        return
+    end
+    local record = {
         ref = call.towRef,
         revision = call.towRevision,
         dispatchId = call.id,
@@ -306,7 +311,11 @@ local function changeTowStatus(call, status, actor)
         driverJob = driver and driver.job and driver.job.name or nil,
         actor = actor and actor.citizenid or nil,
         actorJob = actor and actor.job and actor.job.name or nil,
-    })
+    }
+    local ok, err = pcall(function()
+        exports['ps-mdt']:RecordSadotTowEvent(status, record)
+    end)
+    if not ok then print('[ps-dispatch] PSMDT SADOT event failed: ' .. tostring(err)) end
 end
 
 -- Events
@@ -494,41 +503,6 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
     end
     if not success then return { success = false, reason = 'Not eligible for this tow' } end
     return { success = true }
-end)
-
--- Save a 511 vehicle report only for the actual, on-duty assigned mechanic.
--- All identity, assignment, and job checks are performed on the server.
-lib.callback.register('ps-dispatch:callback:saveTowInspection', function(src, id, details)
-    local call
-    for _, entry in ipairs(calls) do
-        if entry.id == tonumber(id) then call = entry break end
-    end
-    if not call or call.codeName ~= '511call' or call.exclusive ~= true or not call.towRef then
-        return { success = false, reason = 'Tow call is no longer active' }
-    end
-    local player = QBCore and QBCore.Functions.GetPlayer(src)
-    local data = player and player.PlayerData
-    local job = data and data.job
-    if not data or not job or job.type ~= 'mechanic' or not job.onduty then
-        return { success = false, reason = 'On-duty mechanic required' }
-    end
-    local assigned = call.units and call.units[1]
-    if not assigned or assigned.citizenid ~= data.citizenid then
-        return { success = false, reason = 'You are not assigned to this tow' }
-    end
-    if type(details) ~= 'table' then
-        return { success = false, reason = 'Invalid inspection' }
-    end
-    local ok, result = pcall(function()
-        return exports[GetCurrentResourceName()]:SaveSadotTowInspection(
-            call.towRef, data.citizenid, job.name, details
-        )
-    end)
-    if not ok then
-        print('[ps-dispatch] SADOT inspection integration failed: ' .. tostring(result))
-        return { success = false, reason = 'Inspection unavailable' }
-    end
-    return result
 end)
 
 RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)

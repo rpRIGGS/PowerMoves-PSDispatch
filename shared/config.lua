@@ -229,8 +229,26 @@ Config.MajorIncident = {
     -- Minimum job grade allowed to declare or stand down an incident, per job
     -- name. Jobs missing from this list cannot declare at all.
     Grades = {
-        police = 4,
-        ambulance = 4,
+        -- Operational law enforcement agencies
+        lspd = 4,       -- Sergeant
+        lscso = 8,      -- Sergeant
+        bcso = 8,       -- Sergeant
+        sahp = 5,       -- Sergeant
+        sasp = 5,       -- Sergeant
+        sadle = 5,      -- Special Agent Supervisor
+        saspa = 6,      -- Associate Warden
+
+        -- Fire rescue departments
+        safr = 11,      -- Captain I
+        lsfd = 11,      -- Captain I
+        lscfd = 11,     -- Captain I
+        bcfd = 11,      -- Captain I
+
+        -- Medical facilities (onsite paramedic supervisors)
+        pillboxmed = 5,
+        sandymed = 5,
+        paletomed = 5,
+        parsonsmed = 5,
     },
 
     -- Automatic end, in seconds. Someone always forgets, or logs off mid-shift.

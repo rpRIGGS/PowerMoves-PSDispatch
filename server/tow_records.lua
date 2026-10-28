@@ -30,6 +30,24 @@ local function ensureSchema()
                 KEY idx_sadot_caller (caller_citizenid)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ]])
+        -- Inspection reports append immutable entries; they do not falsely
+        -- certify that a vehicle has actually reached a garage or impound lot.
+        MySQL.query.await([[
+            CREATE TABLE IF NOT EXISTS pm_sadot_tow_inspections (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                tow_ref VARCHAR(64) NOT NULL,
+                driver_citizenid VARCHAR(64) NOT NULL,
+                driver_job VARCHAR(64) NOT NULL,
+                plate VARCHAR(24) NOT NULL,
+                vehicle_model VARCHAR(100) NOT NULL,
+                vehicle_condition VARCHAR(256) NOT NULL,
+                destination VARCHAR(160) NOT NULL,
+                notes VARCHAR(512) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_tow_inspection_ref (tow_ref),
+                KEY idx_tow_inspection_plate (plate)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ]])
         MySQL.query.await([[
             CREATE TABLE IF NOT EXISTS pm_sadot_tow_events (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -123,4 +141,58 @@ end)
 exports('GetSadotTowByPlate', function(plate)
     if not ensureSchema() or type(plate) ~= 'string' then return {} end
     return MySQL.query.await('SELECT * FROM pm_sadot_tows WHERE plate = ? ORDER BY created_at DESC LIMIT 50', {plate:sub(1, 24)}) or {}
+end)
+
+-- This export only records a driver's observation; it does not tow, despawn,
+-- store, or impound a vehicle. Call only after checking the live assignment.
+exports('SaveSadotTowInspection', function(towRef, driverId, driverJob, details)
+    if not ensureSchema() or type(details) ~= 'table' then
+        return { success = false, reason = 'Tow database unavailable' }
+    end
+    if type(towRef) ~= 'string' or #towRef < 1 or #towRef > 64
+        or type(driverId) ~= 'string' or driverId == ''
+        or type(driverJob) ~= 'string' or driverJob == '' then
+        return { success = false, reason = 'Invalid tow identity' }
+    end
+    local plate = clip(details.plate, 24) or ''
+    local model = clip(details.vehicleModel, 100) or ''
+    local condition = clip(details.condition, 256) or ''
+    local destination = clip(details.destination, 160) or ''
+    local notes = clip(details.notes, 512) or ''
+    if plate:match('^%s*$') or destination:match('^%s*$') then
+        return { success = false, reason = 'Plate and destination are required' }
+    end
+    local ok, result = pcall(function()
+        local exists = MySQL.single.await(
+            'SELECT tow_ref FROM pm_sadot_tows WHERE tow_ref = ? LIMIT 1', {towRef}
+        )
+        if not exists then return nil end
+        local id = MySQL.insert.await([[
+            INSERT INTO pm_sadot_tow_inspections
+                (tow_ref, driver_citizenid, driver_job, plate,
+                 vehicle_model, vehicle_condition, destination, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ]], {towRef, driverId:sub(1, 64), driverJob:sub(1, 64),
+             plate, model, condition, destination, notes})
+        if not id then return nil end
+        MySQL.update.await(
+            'UPDATE pm_sadot_tows SET plate = ? WHERE tow_ref = ?',
+            {plate, towRef}
+        )
+        return id
+    end)
+    if not ok then
+        print('[ps-dispatch] SADOT inspection save failed: ' .. tostring(result))
+        return { success = false, reason = 'Tow inspection save failed' }
+    end
+    if not result then return { success = false, reason = 'Tow reference not found' } end
+    return { success = true, inspectionId = result, towRef = towRef }
+end)
+
+exports('GetSadotTowInspections', function(ref)
+    if not ensureSchema() or type(ref) ~= 'string' or #ref > 64 then return {} end
+    return MySQL.query.await(
+        'SELECT * FROM pm_sadot_tow_inspections WHERE tow_ref = ? ORDER BY id ASC',
+        {ref}
+    ) or {}
 end)

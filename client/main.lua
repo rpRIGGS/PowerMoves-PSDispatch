@@ -272,8 +272,16 @@ local function setWaypoint()
     local eligible = job and type(data.jobs) == 'table' and
         (lib.table.contains(data.jobs, job.type) or lib.table.contains(data.jobs, job.name))
     if not waypointCooldown and eligible and (Config.OnDutyOnly ~= true or job.onduty == true) then
+        if data.codeName == '511call' then
+            local result = lib.callback.await('ps-dispatch:callback:claimTow', false, data.id)
+            if not (result and result.success) then
+                lib.notify({ description = result and result.reason or 'Tow unavailable', position = 'top', type = 'error' })
+                return
+            end
+        else
+            TriggerServerEvent('ps-dispatch:server:attach', data.id, PlayerData)
+        end
         SetNewWaypoint(at.x, at.y)
-        TriggerServerEvent('ps-dispatch:server:attach', data.id, PlayerData)
         -- Local bridge event so companion resources (e.g. ps-mdt's automatic
         -- officer status) can react to a self-attach made through dispatch
         -- itself. No-op if nothing listens.
@@ -638,12 +646,22 @@ RegisterNUICallback("hideUI", function(_, cb)
 end)
 
 RegisterNUICallback("attachUnit", function(data, cb)
-    TriggerServerEvent('ps-dispatch:server:attach', data.id, PlayerData)
+    if type(data) ~= 'table' or not data.id then cb({ success = false }) return end
+    if data.codeName == '511call' then
+        local result = lib.callback.await('ps-dispatch:callback:claimTow', false, data.id)
+        if not (result and result.success) then
+            lib.notify({ description = result and result.reason or 'Tow unavailable', position = 'top', type = 'error' })
+            cb({ success = false, reason = result and result.reason or 'Tow unavailable' })
+            return
+        end
+    else
+        TriggerServerEvent('ps-dispatch:server:attach', data.id, PlayerData)
+    end
     local at = alertPosition(data)
     if at then SetNewWaypoint(at.x, at.y) end
     TriggerEvent('ps-dispatch:client:selfAttach', data.id)
     SendNUIMessage({ action = 'callResponded', data = data.id })
-    cb("ok")
+    cb({ success = true })
 end)
 
 RegisterNUICallback("detachUnit", function(data, cb)

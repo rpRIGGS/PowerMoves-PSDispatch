@@ -349,13 +349,13 @@ end)
 -- Resolve responding units from trusted QBCore state, never from client payloads.
 -- The old event signature still accepts a second argument for UI compatibility,
 -- but it is deliberately ignored.
-local function dispatchResponder(src, call)
+local function dispatchResponder(src, call, allowOffDuty)
     if not QBCore or type(call) ~= 'table' or type(call.jobs) ~= 'table' then return nil end
     local player = QBCore.Functions.GetPlayer(src)
     local data = player and player.PlayerData
     local job = data and data.job
     if not data or not job or type(data.citizenid) ~= 'string' then return nil end
-    if Config.OnDutyOnly ~= false and not job.onduty then return nil end
+    if not allowOffDuty and Config.OnDutyOnly ~= false and not job.onduty then return nil end
     if not (lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)) then return nil end
     return {
         citizenid = data.citizenid,
@@ -461,7 +461,7 @@ RegisterServerEvent('ps-dispatch:server:detach', function(id, _untrustedPlayer)
         if entry.id == tonumber(id) then call = entry break end
     end
     if not call then return end
-    local responder = dispatchResponder(src, call)
+    local responder = dispatchResponder(src, call, true)
     if not responder then return end
     local removed = false
     for j = #call.units, 1, -1 do
@@ -694,6 +694,7 @@ local function mayModifyCall(src, call)
     local player = QBCore.Functions.GetPlayer(src)
     local job = player and player.PlayerData and player.PlayerData.job
     if not job or type(call.jobs) ~= 'table' then return false end
+    if Config.OnDutyOnly ~= false and not job.onduty then return false end
     if not (lib.table.contains(call.jobs, job.type) or lib.table.contains(call.jobs, job.name)) then return false end
     if call.exclusive == true then
         -- A tow is controlled by its accepted driver, not every mechanic.

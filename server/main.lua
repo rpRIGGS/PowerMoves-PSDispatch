@@ -290,6 +290,16 @@ RegisterServerEvent('ps-dispatch:server:notify', function(data)
     data = sanitizeNotify(data)
     if not data then return end
 
+    -- 511 is a public tow-service call: the server controls both its audience
+    -- and its exclusive first-accept assignment regardless of client metadata.
+    if data.codeName == '511call' then
+        data.jobs = { 'mechanic' }
+        data.code = '511'
+        data.exclusive = true
+    else
+        data.exclusive = nil
+    end
+
     -- Lift configured alerts above the existing red. Done here, once, rather
     -- than in each alert function: the big robberies come from other resources
     -- via CustomAlert, so the code name is the only handle we have on them.
@@ -401,6 +411,27 @@ local function attachResponder(src, id)
     return true
 end
 
+-- Dedicated server-confirmed claim for single-driver towing. No yield occurs
+-- between checking the first claimant and saving the assignment.
+lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
+    local target
+    for _, call in ipairs(calls) do
+        if call.id == tonumber(id) then target = call break end
+    end
+    if not target or target.codeName ~= '511call' or target.exclusive ~= true then
+        return { success = false, reason = 'Not a tow-service call' }
+    end
+    if #target.units > 0 then
+        local player = QBCore and QBCore.Functions.GetPlayer(source)
+        local citizenid = player and player.PlayerData and player.PlayerData.citizenid
+        if target.units[1].citizenid ~= citizenid then
+            return { success = false, reason = 'Tow already assigned' }
+        end
+    end
+    local success = attachResponder(source, id)
+    return { success = success, reason = success and nil or 'Not eligible for this tow' }
+end)
+
 RegisterServerEvent('ps-dispatch:server:attach', function(id, _untrustedPlayer)
     attachResponder(source, id)
 end)
@@ -478,6 +509,14 @@ lib.addCommand('911a', {
 }, function(source, args, raw)
     local fullMessage = raw:sub(5)
     TriggerClientEvent('ps-dispatch:client:sendEmergencyMsg', source, fullMessage, "911", true)
+end)
+
+lib.addCommand('511', {
+    help = 'Request roadside assistance or a tow',
+    params = { { name = 'message', type = 'string', help = 'Roadside assistance request' }},
+}, function(source, args, raw)
+    local fullMessage = raw:sub(5)
+    TriggerClientEvent('ps-dispatch:client:sendEmergencyMsg', source, fullMessage, "511", false)
 end)
 
 lib.addCommand('311', {

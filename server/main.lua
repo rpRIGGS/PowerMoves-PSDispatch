@@ -484,6 +484,23 @@ lib.callback.register('ps-dispatch:callback:claimTow', function(source, id)
             return { success = false, reason = 'Tow already assigned' }
         end
     end
+    -- Qualification is checked by PSMDT using live server employment, a
+    -- current observed vehicle, approved business license and SADOT permits.
+    -- Never accept a client-supplied "qualified" flag or plate.
+    local policy = Config.SadotTowPermits or {}
+    if policy.Enabled == true then
+        local mdtr = policy.MdtResource or 'ps-mdt'
+        if GetResourceState(mdtr) ~= 'started' then
+            return {success=false, reason='Transport licensing service unavailable'}
+        end
+        local ok, allowed = pcall(function()
+            return exports[mdtr]:IsSadotTowEligible(source)
+        end)
+        if not ok or allowed ~= true then
+            return {success=false, reason='Tow operator, driver or vehicle not licensed'}
+        end
+    end
+
     local wasUnassigned = #target.units == 0
     local success = attachResponder(source, id)
     if success and wasUnassigned then

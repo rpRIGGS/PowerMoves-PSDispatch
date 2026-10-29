@@ -1,4 +1,11 @@
 Config = Config or {}
+-- Optional permit enforcement for 511. Keep disabled until PSMDT's SADOT
+-- business/tow/driver/vehicle permit records and operator jobs are configured.
+Config.SadotTowPermits = {
+    Enabled = false,
+    MdtResource = 'ps-mdt',
+}
+
 
 Config.Debug = true -- Enables debug and send alerts when leo break the law.
 
